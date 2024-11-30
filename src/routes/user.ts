@@ -42,12 +42,15 @@ userRouter.post('/user/signup', async (c) => {
       id: user.id,
     }, c.env.JWT_TOKEN);
 
-    console.log(user);
-    return c.text(token, 200);
+    console.log('sign-up data : ', token);
+    return c.json({
+      token
+    }, 200);
 
   } catch (e) {
-    console.log(e);
-    return c.text("Invalid", 411);
+    return c.json({
+      message: "Something went wrong!"
+    }, 200);
   }
 })
 userRouter.post('/user/signin', async (c) => {
@@ -80,8 +83,10 @@ userRouter.post('/user/signin', async (c) => {
       id: user.id,
     }, c.env.JWT_TOKEN);
 
-    console.log(user);
-    return c.text(token, 200);
+    console.log('sign-in data: ', token);
+    return c.json({
+      token
+    }, 200);
 
   } catch (e) {
     console.log(e);
