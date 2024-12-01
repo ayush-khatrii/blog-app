@@ -17,7 +17,6 @@ export const blogRouter = new Hono<{
 // AUTH MIDDLEWARE
 blogRouter.use("/*", async (c, next) => {
   const authHeader = c.req.header("authorization");
-  console.log("authHeader", authHeader);
 
   if (!authHeader) {
     return c.json({
@@ -27,7 +26,6 @@ blogRouter.use("/*", async (c, next) => {
 
   try {
     const jwtPayload = await verify(authHeader, c.env?.JWT_TOKEN);
-    console.log('jwtPayload ', jwtPayload);
     const userId = jwtPayload.id;
     if (userId) {
       c.set("userId", userId.toString());
@@ -47,7 +45,6 @@ blogRouter.post('/', async (c) => {
     datasourceUrl: c.env?.DATABASE_URL,
   }).$extends(withAccelerate());
   const authorId = c.get("userId");
-  console.log('authorId', authorId);
 
   try {
     const blogPost = await prisma.post.create({
@@ -172,9 +169,22 @@ blogRouter.get('/', async (c) => {
   }).$extends(withAccelerate());
 
   try {
-    const blogPosts = await prisma.post.findMany({});
+    const blogPosts = await prisma.post.findMany({
+      select: {
+        content: true,
+        thumbnail: true,
+        createdAt: true,
+        isPublished: true,
+        title: true,
+        id: true,
+        author: {
+          select: {
+            name: true
+          }
+        }
+      }
+    });
     const count = await prisma.post.count();
-    console.log(count);
 
     if (!blogPosts) {
       return c.json({
