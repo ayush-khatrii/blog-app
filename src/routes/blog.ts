@@ -145,6 +145,15 @@ blogRouter.get('/:id', async (c) => {
       where: {
         id: Number(blogId)
       },
+      select: {
+        title: true,
+        content: true,
+        author: {
+          select: {
+            name: true
+          }
+        }
+      }
     });
 
     if (!blogPost) {
