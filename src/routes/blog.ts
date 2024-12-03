@@ -147,6 +147,8 @@ blogRouter.get('/:id', async (c) => {
       },
       select: {
         id: true,
+        createdAt: true,
+        isPublished: true,
         title: true,
         content: true,
         author: {
@@ -180,6 +182,9 @@ blogRouter.get('/', async (c) => {
 
   try {
     const blogPosts = await prisma.post.findMany({
+      orderBy: {
+        createdAt: "desc"
+      },
       select: {
         content: true,
         thumbnail: true,
