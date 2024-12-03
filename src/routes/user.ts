@@ -1,13 +1,16 @@
 import { Hono } from "hono";
 import { PrismaClient } from '@prisma/client/edge'
 import { withAccelerate } from '@prisma/extension-accelerate'
-import { sign } from 'hono/jwt'
+import { sign, verify } from 'hono/jwt'
 import { signInInputs, signUpInputs } from "hono-blog-common";
 
 export const userRouter = new Hono<{
   Bindings: {
     DATABASE_URL: string;
     JWT_TOKEN: string
+  },
+  Variables: {
+    userId: string;
   }
 }>();
 
@@ -92,4 +95,75 @@ userRouter.post('/user/signin', async (c) => {
     console.log(e);
     return c.text("Invalid", 411);
   }
-})
+});
+
+userRouter.use("/*", async (c, next) => {
+  const authHeader = c.req.header("authorization");
+
+  if (!authHeader) {
+    return c.json({
+      message: "Auth Token not found!"
+    }, 404)
+  }
+
+  try {
+    const jwtPayload = await verify(authHeader, c.env?.JWT_TOKEN);
+    const userId = jwtPayload.id;
+    if (userId) {
+      c.set("userId", userId.toString());
+      await next();
+    } else {
+      return c.json({ message: "You are not logged in!" }, 403);
+    }
+  } catch (error) {
+    return c.json({ message: "Invalid or expired token!" }, 403);
+  }
+});
+userRouter.get('/user/profile', async (c) => {
+  const prisma = new PrismaClient({
+    datasourceUrl: c.env?.DATABASE_URL,
+  }).$extends(withAccelerate());
+
+  const authHeader = c.req.header("authorization") || "";
+  const jwtPayload = await verify(authHeader, c.env?.JWT_TOKEN);
+  const userId = jwtPayload.id;
+  const id = Number(userId);
+
+  try {
+    const user = await prisma.user.findFirst({
+      where: {
+        id
+      },
+      select: {
+        id: true,
+        name: true,
+        username: true,
+        Post: {
+          select: {
+            id: true,
+            title: true,
+            content: true,
+            createdAt: true
+          }
+        }
+      }
+    });
+    if (!user) {
+      return c.json({
+        message: "User not found!"
+      }, 403);
+    }
+    const userData = user;
+    const userPosts = user.Post
+
+    return c.json({
+      userData,
+      userPosts
+    }, 200);
+
+  } catch (e) {
+    console.log(e);
+    return c.text("Invalid", 411);
+  }
+});
+
