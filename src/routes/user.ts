@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client/edge'
 import { withAccelerate } from '@prisma/extension-accelerate'
 import { sign, verify } from 'hono/jwt'
 import { signInInputs, signUpInputs } from "hono-blog-common";
+import { authMiddleware } from "../middleware/middleware";
 
 export const userRouter = new Hono<{
   Bindings: {
@@ -97,29 +98,7 @@ userRouter.post('/user/signin', async (c) => {
   }
 });
 
-userRouter.use("/*", async (c, next) => {
-  const authHeader = c.req.header("authorization");
-
-  if (!authHeader) {
-    return c.json({
-      message: "Auth Token not found!"
-    }, 404)
-  }
-
-  try {
-    const jwtPayload = await verify(authHeader, c.env?.JWT_TOKEN);
-    const userId = jwtPayload.id;
-    if (userId) {
-      c.set("userId", userId.toString());
-      await next();
-    } else {
-      return c.json({ message: "You are not logged in!" }, 403);
-    }
-  } catch (error) {
-    return c.json({ message: "Invalid or expired token!" }, 403);
-  }
-});
-userRouter.get('/user/profile', async (c) => {
+userRouter.get('/user/profile', authMiddleware, async (c) => {
   const prisma = new PrismaClient({
     datasourceUrl: c.env?.DATABASE_URL,
   }).$extends(withAccelerate());

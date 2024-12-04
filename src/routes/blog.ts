@@ -1,7 +1,7 @@
-import { Hono } from "hono";
+import { Context, Hono } from "hono";
 import { Post, PrismaClient } from '@prisma/client/edge'
 import { withAccelerate } from '@prisma/extension-accelerate'
-import { verify } from "hono/jwt";
+import { authMiddleware } from "../middleware/middleware";
 
 export const blogRouter = new Hono<{
   Bindings: {
@@ -13,6 +13,7 @@ export const blogRouter = new Hono<{
   }
 }>();
 
+// Public routes - no middleware
 blogRouter.get('/', async (c) => {
   const prisma = new PrismaClient({
     datasourceUrl: c.env?.DATABASE_URL,
@@ -20,9 +21,7 @@ blogRouter.get('/', async (c) => {
 
   try {
     const blogPosts = await prisma.post.findMany({
-      orderBy: {
-        createdAt: "desc"
-      },
+      orderBy: { createdAt: "desc" },
       select: {
         content: true,
         thumbnail: true,
@@ -31,31 +30,17 @@ blogRouter.get('/', async (c) => {
         title: true,
         id: true,
         author: {
-          select: {
-            name: true
-          }
+          select: { name: true }
         }
       }
     });
     const count = await prisma.post.count();
-
-    if (!blogPosts) {
-      return c.json({
-        message: "Blog posts not found!",
-      }, 404);
-    }
-    return c.json({
-      blogPosts,
-      total: count
-    }, 200)
+    return c.json({ blogPosts, total: count }, 200);
   } catch (error: any) {
-    return c.json({
-      message: error.message
-    }, 500)
+    return c.json({ message: error.message }, 500);
   }
 });
 
-// GET A SPECIFIC BLOG ROUTE
 blogRouter.get('/:id', async (c) => {
   const blogId = c.req.param("id");
   const prisma = new PrismaClient({
@@ -64,9 +49,7 @@ blogRouter.get('/:id', async (c) => {
 
   try {
     const blogPost = await prisma.post.findFirst({
-      where: {
-        id: Number(blogId)
-      },
+      where: { id: Number(blogId) },
       select: {
         id: true,
         createdAt: true,
@@ -74,55 +57,22 @@ blogRouter.get('/:id', async (c) => {
         title: true,
         content: true,
         author: {
-          select: {
-            name: true
-          }
+          select: { name: true }
         }
       }
     });
 
     if (!blogPost) {
-      return c.json({
-        message: "Blog post not found!"
-      })
+      return c.json({ message: "Blog post not found!" }, 404);
     }
-    return c.json({
-      blogPost
-    }, 200)
-
+    return c.json({ blogPost }, 200);
   } catch (error: any) {
-    return c.json({
-      message: error.message
-    }, 500)
-  }
-});
-
-//====================== AUTH MIDDLEWARE ============================== // 
-blogRouter.use("/*", async (c, next) => {
-  const authHeader = c.req.header("authorization");
-
-  if (!authHeader) {
-    return c.json({
-      message: "Auth Token not found!"
-    }, 404)
-  }
-
-  try {
-    const jwtPayload = await verify(authHeader, c.env?.JWT_TOKEN);
-    const userId = jwtPayload.id;
-    if (userId) {
-      c.set("userId", userId.toString());
-      await next();
-    } else {
-      return c.json({ message: "You are not logged in!" }, 403);
-    }
-  } catch (error) {
-    return c.json({ message: "Invalid or expired token!" }, 403);
+    return c.json({ message: error.message }, 500);
   }
 });
 
 // POST ROUTE
-blogRouter.post('/', async (c) => {
+blogRouter.post('/', authMiddleware, async (c) => {
   const body = await c.req.json();
   const prisma = new PrismaClient({
     datasourceUrl: c.env?.DATABASE_URL,
@@ -150,7 +100,7 @@ blogRouter.post('/', async (c) => {
 });
 
 // PUT ROUTE
-blogRouter.put('/:id', async (c) => {
+blogRouter.put('/:id', authMiddleware, async (c) => {
   const body = await c.req.json();
   const blogId = c.req.param("id");
   const prisma = new PrismaClient({
@@ -187,7 +137,7 @@ blogRouter.put('/:id', async (c) => {
 });
 
 // DELETE ROUTE
-blogRouter.delete('/:id', async (c) => {
+blogRouter.delete('/:id', authMiddleware, async (c) => {
   const blogId = c.req.param("id")
   const prisma = new PrismaClient({
     datasourceUrl: c.env?.DATABASE_URL,
