@@ -13,8 +13,91 @@ export const blogRouter = new Hono<{
   }
 }>();
 
+blogRouter.get('/', async (c) => {
+  const prisma = new PrismaClient({
+    datasourceUrl: c.env?.DATABASE_URL,
+  }).$extends(withAccelerate());
 
-// AUTH MIDDLEWARE
+  try {
+    const blogPosts = await prisma.post.findMany({
+      orderBy: {
+        createdAt: "desc"
+      },
+      select: {
+        content: true,
+        thumbnail: true,
+        createdAt: true,
+        isPublished: true,
+        title: true,
+        id: true,
+        author: {
+          select: {
+            name: true
+          }
+        }
+      }
+    });
+    const count = await prisma.post.count();
+
+    if (!blogPosts) {
+      return c.json({
+        message: "Blog posts not found!",
+      }, 404);
+    }
+    return c.json({
+      blogPosts,
+      total: count
+    }, 200)
+  } catch (error: any) {
+    return c.json({
+      message: error.message
+    }, 500)
+  }
+});
+
+// GET A SPECIFIC BLOG ROUTE
+blogRouter.get('/:id', async (c) => {
+  const blogId = c.req.param("id");
+  const prisma = new PrismaClient({
+    datasourceUrl: c.env?.DATABASE_URL,
+  }).$extends(withAccelerate());
+
+  try {
+    const blogPost = await prisma.post.findFirst({
+      where: {
+        id: Number(blogId)
+      },
+      select: {
+        id: true,
+        createdAt: true,
+        isPublished: true,
+        title: true,
+        content: true,
+        author: {
+          select: {
+            name: true
+          }
+        }
+      }
+    });
+
+    if (!blogPost) {
+      return c.json({
+        message: "Blog post not found!"
+      })
+    }
+    return c.json({
+      blogPost
+    }, 200)
+
+  } catch (error: any) {
+    return c.json({
+      message: error.message
+    }, 500)
+  }
+});
+
+//====================== AUTH MIDDLEWARE ============================== // 
 blogRouter.use("/*", async (c, next) => {
   const authHeader = c.req.header("authorization");
 
@@ -126,90 +209,6 @@ blogRouter.delete('/:id', async (c) => {
       id: blogPost.id
     }, 200)
 
-  } catch (error: any) {
-    return c.json({
-      message: error.message
-    }, 500)
-  }
-});
-
-// GET A SPECIFIC BLOG ROUTE
-blogRouter.get('/:id', async (c) => {
-  const blogId = c.req.param("id");
-  const prisma = new PrismaClient({
-    datasourceUrl: c.env?.DATABASE_URL,
-  }).$extends(withAccelerate());
-
-  try {
-    const blogPost = await prisma.post.findFirst({
-      where: {
-        id: Number(blogId)
-      },
-      select: {
-        id: true,
-        createdAt: true,
-        isPublished: true,
-        title: true,
-        content: true,
-        author: {
-          select: {
-            name: true
-          }
-        }
-      }
-    });
-
-    if (!blogPost) {
-      return c.json({
-        message: "Blog post not found!"
-      })
-    }
-    return c.json({
-      blogPost
-    }, 200)
-
-  } catch (error: any) {
-    return c.json({
-      message: error.message
-    }, 500)
-  }
-});
-
-blogRouter.get('/', async (c) => {
-  const prisma = new PrismaClient({
-    datasourceUrl: c.env?.DATABASE_URL,
-  }).$extends(withAccelerate());
-
-  try {
-    const blogPosts = await prisma.post.findMany({
-      orderBy: {
-        createdAt: "desc"
-      },
-      select: {
-        content: true,
-        thumbnail: true,
-        createdAt: true,
-        isPublished: true,
-        title: true,
-        id: true,
-        author: {
-          select: {
-            name: true
-          }
-        }
-      }
-    });
-    const count = await prisma.post.count();
-
-    if (!blogPosts) {
-      return c.json({
-        message: "Blog posts not found!",
-      }, 404);
-    }
-    return c.json({
-      blogPosts,
-      total: count
-    }, 200)
   } catch (error: any) {
     return c.json({
       message: error.message
